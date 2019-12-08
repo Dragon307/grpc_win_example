@@ -27,7 +27,6 @@
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
-
 #include <grpcpp/grpcpp.h>
 #include <grpc/grpc_security.h>
 #include <grpcpp/security/credentials.h>
@@ -47,20 +46,16 @@ using helloworld::HelloReply;
 using helloworld::Greeter;
 
 char* roots_file = nullptr;
-char* root_store = nullptr;
+char* root_store_name = nullptr;
 char* pem_roots = nullptr;
 int pem_roots_length = 0;
-
-char* client_certs_file = nullptr;
-char* client_cert_store = nullptr;
-char* client_cert_name = nullptr;
-char* pem_client_cert_chain = nullptr;
-
+char* certs_file = nullptr;
+char* cert_store = nullptr;
+char* cert_name = nullptr;
+char* pem_cert_chain = nullptr;
 char* keyId = nullptr;
 char* keyIdFile = nullptr;
-
 bool userLocation = true;
-
 char* server_address = nullptr;
 char* server_name = nullptr;
 
@@ -68,16 +63,12 @@ HCERTSTORE hRootCertStore = NULL;
 HCERTCHAINENGINE hChainEngine = NULL;
 
 typedef class ::grpc_impl::experimental::TlsKeyMaterialsConfig TlsKeyMaterialsConfig;
-
 typedef class ::grpc_impl::experimental::TlsCredentialReloadArg TlsCredentialReloadArg;
 typedef struct ::grpc_impl::experimental::TlsCredentialReloadInterface TlsCredentialReloadInterface;
-
 typedef struct ::grpc_impl::experimental::TlsServerAuthorizationCheckInterface TlsServerAuthorizationCheckInterface;
 typedef class ::grpc_impl::experimental::TlsServerAuthorizationCheckArg TlsServerAuthorizationCheckArg;
 typedef class ::grpc_impl::experimental::TlsServerAuthorizationCheckConfig TlsServerAuthorizationCheckConfig;
-
 typedef class ::grpc_impl::experimental::TlsCredentialsOptions TlsCredentialsOptions;
-
 typedef class TestTlsServerAuthorizationCheck TestTlsServerAuthorizationCheck;
 
 std::shared_ptr<TestTlsServerAuthorizationCheck> server_check = nullptr;
@@ -144,7 +135,6 @@ bool verify_server(const char* peer_pem)
 class TestTlsServerAuthorizationCheck
     : public TlsServerAuthorizationCheckInterface {
     int Schedule(TlsServerAuthorizationCheckArg* arg) override {
-        printf("\nScheduling Callback\n");
         if (arg) {
             if (arg->target_name().c_str())
             {
@@ -171,14 +161,14 @@ class TestTlsServerAuthorizationCheck
 
     void Cancel(TlsServerAuthorizationCheckArg* arg) override {
         if (arg) {
+            arg->set_success(0);
             arg->set_status(GRPC_STATUS_PERMISSION_DENIED);
-            arg->set_error_details("cancelled");
         }
     }
 };
 
 std::shared_ptr<grpc::ChannelCredentials>
-_grpc_get_client_channel_credentials(
+_grpc_get_channel_credentials(
     std::shared_ptr<TlsServerAuthorizationCheckConfig> server_check_config,
     char* rootCerts,
     char* certChain,            // Optional, set for client auth
@@ -187,18 +177,9 @@ _grpc_get_client_channel_credentials(
     grpc::string pem_root_certs;
     grpc::string pem_private_key;
     grpc::string pem_cert_chain;
-
-    if (pem_roots) {
-        pem_root_certs = pem_roots;
-    }
-
-    if (pem_client_cert_chain) {
-        pem_cert_chain = pem_client_cert_chain;
-    }
-
-    if (keyId) {
-        pem_private_key = keyId;
-    }
+    if (rootCerts) { pem_root_certs = rootCerts; }
+    if (certChain) { pem_cert_chain = certChain; }
+    if (keyId) { pem_private_key = keyId; }
 
     // Key Material
     struct TlsKeyMaterialsConfig::PemKeyCertPair pair = { pem_private_key, pem_cert_chain };
@@ -223,18 +204,15 @@ _grpc_get_client_channel_credentials(
 void RunClient() {
     printf("Server Address: %s\n", server_address);
     printf("Server Name: %s\n", server_name);
-
     std::shared_ptr<TestTlsServerAuthorizationCheck>
         server_check(new TestTlsServerAuthorizationCheck());
-
     std::shared_ptr<TlsServerAuthorizationCheckConfig>
         server_check_config(new TlsServerAuthorizationCheckConfig(server_check));
-
     std::shared_ptr<grpc::ChannelCredentials> clientChannelCredentials =
-        _grpc_get_client_channel_credentials(
+        _grpc_get_channel_credentials(
             server_check_config,
             pem_roots,
-            pem_client_cert_chain,
+            pem_cert_chain,
             keyId);
     grpc::ChannelArguments args;
     args.SetSslTargetNameOverride(server_name);
@@ -308,7 +286,7 @@ int main(int argc, char** argv) {
                     printf("Option (-%s) : missing argument\n", argv[0] + 1);
                     goto BadUsage;
                 }
-                root_store = argv[1];
+                root_store_name = argv[1];
                 argc -= 1;
                 argv += 1;
             }
@@ -318,7 +296,7 @@ int main(int argc, char** argv) {
                     printf("Option (-%s) : missing argument\n", argv[0] + 1);
                     goto BadUsage;
                 }
-                client_certs_file = argv[1];
+                certs_file = argv[1];
                 argc -= 1;
                 argv += 1;
             }
@@ -328,7 +306,7 @@ int main(int argc, char** argv) {
                     printf("Option (-%s) : missing argument\n", argv[0] + 1);
                     goto BadUsage;
                 }
-                client_cert_name = argv[1];
+                cert_name = argv[1];
                 argc -= 1;
                 argv += 1;
             }
@@ -338,7 +316,7 @@ int main(int argc, char** argv) {
                     printf("Option (-%s) : missing argument\n", argv[0] + 1);
                     goto BadUsage;
                 }
-                client_cert_store = argv[1];
+                cert_store = argv[1];
                 argc -= 1;
                 argv += 1;
             }
@@ -348,8 +326,9 @@ int main(int argc, char** argv) {
                     printf("Option (-%s) : missing argument\n", argv[0] + 1);
                     goto BadUsage;
                 }
-                keyId = (char*)calloc(strlen(argv[1]) + 1, sizeof(char));
-                if (keyId == NULL) {
+                keyId = (char*)LocalAlloc(LPTR, strlen(argv[1]) + 1);
+                if (keyId == nullptr)
+                {
                     printf("Can't allocate \n");
                     ReturnStatus = -1;
                     goto CommonReturn;
@@ -375,13 +354,13 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (roots_file && root_store)
+    if (roots_file && root_store_name)
     {
         printf("Specify either roots file or root store\n");
         goto BadUsage;
     }
 
-    if (client_certs_file && client_cert_name)
+    if (certs_file && cert_name)
     {
         printf("Specify either clientCertsChain or clientCertName \n");
         goto BadUsage;
@@ -392,18 +371,25 @@ int main(int argc, char** argv) {
         std::ifstream fileStream(roots_file);
         std::string fileContents((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
 
-        if (win_open_mem_store(fileContents.length(), fileContents.c_str(), &hRootCertStore)) {
+        // Open HCERTSTORE from PEM encoded roots
+        if (win_open_memory_cert_store(
+                fileContents.length(),
+                fileContents.c_str(),
+                &hRootCertStore))
+        {
             // Create an global engine
-            CERT_CHAIN_ENGINE_CONFIG EngineConfig = { 0 };
-            EngineConfig.cbSize = sizeof(EngineConfig);
-            EngineConfig.dwFlags = CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE | CERT_CHAIN_ENABLE_SHARE_STORE;
-            EngineConfig.hExclusiveRoot = hRootCertStore;
-            if (!CertCreateCertificateChainEngine(&EngineConfig, &hChainEngine))
+            if (!win_create_engine_with_exclusive_root_store(hRootCertStore, &hChainEngine))
             {
                 printf("Can't create engine \n");
                 ReturnStatus = -1;
                 goto CommonReturn;
             }
+        }
+        else
+        {
+            printf("Can't open mem store from Roots file\n");
+            ReturnStatus = -1;
+            goto CommonReturn;
         }
 
         pem_roots = (char*)LocalAlloc(LPTR, fileContents.length() + 1);
@@ -414,46 +400,70 @@ int main(int argc, char** argv) {
         }
         memcpy(pem_roots, fileContents.c_str(), fileContents.length());
     }
-    else if (root_store)
+    else if (root_store_name)
     {
-        hRootCertStore = CertOpenSystemStoreA(NULL, root_store);
-        if (hRootCertStore) {
-            win_get_trusted_roots(hRootCertStore, &pem_roots_length, &pem_roots);
+        printf("Opening Store: %s\n", root_store_name);
+        hRootCertStore = CertOpenSystemStoreA(NULL, root_store_name);
+        if (hRootCertStore == nullptr)
+        {
+            printf("Can't open the store\n");
+            ReturnStatus = -1;
+            goto CommonReturn;
+        }
 
-            // Create an global engine
-            CERT_CHAIN_ENGINE_CONFIG EngineConfig = { 0 };
-            EngineConfig.cbSize = sizeof(EngineConfig);
-            EngineConfig.dwFlags = CERT_CHAIN_ENABLE_CACHE_AUTO_UPDATE | CERT_CHAIN_ENABLE_SHARE_STORE;
-            EngineConfig.hExclusiveRoot = hRootCertStore;
-            if (!CertCreateCertificateChainEngine(&EngineConfig, &hChainEngine))
-            {
-                printf("Can't create engine \n");
-                ReturnStatus = -1;
-                goto CommonReturn;
-            }
+        if (!win_get_trusted_roots(hRootCertStore, &pem_roots_length, &pem_roots))
+        {
+            printf("Couldn't get the trusted roots from Store\n");
+            ReturnStatus = -1;
+            goto CommonReturn;
+        }
+
+        // Create an global engine
+        if (!win_create_engine_with_exclusive_root_store(hRootCertStore, &hChainEngine))
+        {
+            printf("Can't create engine \n");
+            ReturnStatus = -1;
+            goto CommonReturn;
         }
     }
 
-    if (client_certs_file)
+    if (certs_file)
     {
-        std::ifstream fileStream(client_certs_file);
+        std::ifstream fileStream(certs_file);
         std::string fileContents((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
-        pem_client_cert_chain = (char*)LocalAlloc(LPTR, fileContents.length() + 1);
-        if (pem_client_cert_chain == NULL) {
+        pem_cert_chain = (char*)LocalAlloc(LPTR, fileContents.length() + 1);
+        if (pem_cert_chain == NULL) {
             printf("Can't allocate \n");
             ReturnStatus = -1;
             goto CommonReturn;
         }
-        memcpy(pem_client_cert_chain, fileContents.c_str(), fileContents.length());
+        memcpy(pem_cert_chain, fileContents.c_str(), fileContents.length());
     }
-    else if(client_cert_store && client_cert_name)
+    else if(cert_store && cert_name)
     {
         int pem_chain_length = 0;
         int key_id_length = 0;
-        PCCERT_CONTEXT pCertContext = win_get_cert_context(client_cert_store, client_cert_name);
-        if (pCertContext) {
-            win_get_cert_chain(pCertContext, &pem_chain_length, &pem_client_cert_chain);
-            win_get_engine_key_id(pCertContext, client_cert_store, &key_id_length, &keyId);
+        PCCERT_CONTEXT pCertContext = win_get_cert_context(cert_store, cert_name);
+        if (pCertContext != nullptr) {
+            if (!win_get_cert_chain(pCertContext, &pem_chain_length, &pem_cert_chain))
+            {
+                printf("Can't get the certificate chain\n");
+                ReturnStatus = -1;
+                goto CommonReturn;
+            }
+
+            if (!win_get_engine_key_id(pCertContext, cert_store, &key_id_length, &keyId))
+            {
+                printf("Can't get the engine id\n");
+                ReturnStatus = -1;
+                goto CommonReturn;
+            }
+        }
+        else
+        {
+            printf("Couldn't find the certificate for %s\n", cert_name);
+            ReturnStatus = -1;
+            goto CommonReturn;
         }
     }
 
@@ -462,7 +472,8 @@ int main(int argc, char** argv) {
         std::ifstream fileStream(keyIdFile);
         std::string fileContents((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
         keyId = (char*)LocalAlloc(LPTR, fileContents.length() + 1);
-        if (keyId == NULL) {
+        if (keyId == nullptr)
+        {
             printf("Can't allocate \n");
             ReturnStatus = -1;
             goto CommonReturn;
@@ -477,17 +488,17 @@ int main(int argc, char** argv) {
     }
     else
     {
-        printf("\nRoot Certs:\n%s\n\n", pem_roots);
+        printf("Root Certs:\n%s\n\n", pem_roots);
     }
 
-    if (pem_client_cert_chain)
+    if (pem_cert_chain)
     {
-        printf("\nCert Chain:\n%s\n\n", pem_client_cert_chain);
+        printf("Cert Chain:\n%s\n\n", pem_cert_chain);
     }
 
     if (keyId)
     {
-        printf("\nKeyId:\n%s\n\n", keyId);
+        printf("KeyId:\n%s\n\n", keyId);
     }
 
     RunClient();
@@ -496,7 +507,7 @@ int main(int argc, char** argv) {
 CommonReturn:
     LocalFree(pem_roots);
     LocalFree(keyId);
-    LocalFree(pem_client_cert_chain);
+    LocalFree(pem_cert_chain);
 
     if (hChainEngine) {
         CertFreeCertificateChainEngine(hChainEngine);
