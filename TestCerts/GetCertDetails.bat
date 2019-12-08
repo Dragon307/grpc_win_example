@@ -1,0 +1,12 @@
+certutil -f -store -user My SslRsaRoot
+certutil -f -store -user My SslRsaCA
+certutil -f -store -user My SslRsaServer 
+certutil -f -store -user My SslRsaClient
+certutil -f -store -user My SslEccCA
+certutil -f -store -user My SslEccServer
+certutil -f -store -user My SslEccClient
+certutil -f -store -user My SslEccRoot
+certutil -f -store -user My SslEccCA2
+certutil -f -store -user My SslEccServer2
+certutil -f -store -user My SslEccClient2
+certutil -f -store -user My SslEccServerClient

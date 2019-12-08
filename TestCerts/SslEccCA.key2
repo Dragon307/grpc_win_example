@@ -1,0 +1,11 @@
+Bag Attributes
+    localKeyID: 01 00 00 00 
+    friendlyName: tq-70ec18ca-23be-49b9-830d-fdb4633379d4
+    Microsoft CSP Name: Microsoft Software Key Storage Provider
+Key Attributes
+    X509v3 Key Usage: 80 
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgkF6VbshWCkUgqElf
+gqcOr/crfjeZJhjS3VyvshDO2SKhRANCAASK9z5vxOZ247VbM5jOjbu9eMbelOy7
+sBL1ZyUfonEfsMYDi+Eg+PD0eJPCxQplGGvK9ooTWf2967K6y8gXVcTV
+-----END PRIVATE KEY-----

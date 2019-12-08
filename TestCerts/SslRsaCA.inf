@@ -1,0 +1,25 @@
+[Version]
+Signature = "$Windows NT$"
+
+[Strings]
+szOID_BASIC_CONSTRAINTS2 = "2.5.29.19"
+
+[NewRequest]
+Subject = "CN=SslRsaCA"
+RequestType = Cert
+Exportable = True
+
+KeyAlgorithm = RSA
+KeyUsage = "CERT_DIGITAL_SIGNATURE_KEY_USAGE | CERT_OFFLINE_CRL_SIGN_KEY_USAGE | CERT_CRL_SIGN_KEY_USAGE | CERT_KEY_CERT_SIGN_KEY_USAGE"
+KeyLength = 2048
+
+ProviderName = "Microsoft Software Key Storage Provider"
+ProviderType = 0
+
+HashAlgorithm = Sha256
+ValidityPeriod = Years
+ValidityPeriodUnits = 5
+
+[Extensions]
+%szOID_BASIC_CONSTRAINTS2% = "{text}CA=TRUE"
+Critical = %szOID_BASIC_CONSTRAINTS2%
