@@ -184,7 +184,8 @@ _DisplayCertInfo(
     return;
 }
 
-bool win_open_memory_cert_store(
+bool
+win_open_memory_cert_store(
     size_t certLength,
     const char* certBytes,
     HCERTSTORE* hCertStore)
@@ -196,8 +197,6 @@ bool win_open_memory_cert_store(
     unsigned char* newCertBytes = NULL;
     STACK_OF(X509)* roots = NULL;
     int chainDepth = 0;
-    int len = 0;
-    unsigned char* buf = NULL;
     PCCERT_CONTEXT pCertContext = NULL;
     CERT_CHAIN_PARA ChainPara = { 0 };
     ChainPara.cbSize = sizeof(ChainPara);
@@ -246,7 +245,10 @@ bool win_open_memory_cert_store(
     chainDepth = sk_X509_num(roots);
     for (int i = 0; i < chainDepth; i++)
     {
-        PCCERT_CONTEXT pCertRest = NULL;
+        int len = 0;
+        unsigned char* buf = nullptr;
+        PCCERT_CONTEXT pCertContext= NULL;
+
         X509* cert = sk_X509_value(roots, i);
         printf("  [%d]: ", i);
         X509_NAME_print_ex_fp(
@@ -256,17 +258,28 @@ bool win_open_memory_cert_store(
             XN_FLAG_ONELINE | XN_FLAG_DN_REV);
         printf("\n");
 
+        len = i2d_X509(cert, &buf);
+        if (len < 0)
+        {
+            printf("i2d_X509 Failed \n");
+            goto CommonReturn;
+        }
+
         if (!CertAddEncodedCertificateToStore(
                 *hCertStore,
                 X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
                 buf,
                 len,
                 CERT_STORE_ADD_USE_EXISTING,
-                &pCertRest))
+                &pCertContext))
         {
+            DWORD dwError = _GetNonzeroLastError();
+            printf("CertAddEncodedCertificateToStore Failed: %d \n", dwError);
             goto CommonReturn;
         }
-        CertFreeCertificateContext(pCertRest);
+        OPENSSL_free(buf);
+        buf = nullptr;
+        CertFreeCertificateContext(pCertContext);
     }
 
     returnStatus = true;
@@ -618,75 +631,121 @@ CommonReturn:
 }
 
 int _load_pem_certs(
-    int certLength,
-    const char* certBytes,
+    size_t certChainLength,
+    const char* certChainBytes,
+    size_t endCertLength,
+    const char* endCertBytes,
     X509** cert,
     STACK_OF(X509)** ca)
 {
     int ret = 0;
-    BIO* in = NULL;
+    BIO* certChainBio = nullptr;
+    BIO* endCertBio = nullptr;
     STACK_OF(X509_INFO)* certInfos = NULL;
 
     *cert = NULL;
+
+    if (certChainBytes == nullptr)
+    {
+        goto CommonReturn;
+    }
+
     *ca = sk_X509_new_null();
-    if (*ca == NULL) {
-        goto openSslErr;
+    if (*ca == NULL)
+    {
+        goto CommonReturn;
     }
 
-    in = BIO_new_mem_buf(certBytes, certLength);
-    if (in == NULL) {
-        goto openSslErr;
+    // Client Side: SSL_get_peer_cert_chain contains the end-cert
+    certChainBio = BIO_new_mem_buf(certChainBytes, certChainLength);
+    if (certChainBio == nullptr)
+    {
+        goto CommonReturn;
     }
-
-    certInfos = PEM_X509_INFO_read_bio(in, NULL, NULL, NULL);
+    certInfos = PEM_X509_INFO_read_bio(certChainBio, NULL, NULL, NULL);
     if (certInfos == NULL) {
-        goto openSslErr;
+        goto CommonReturn;
     }
 
-    for (int i = 0; i < sk_X509_INFO_num(certInfos); i++) {
-        X509_INFO* certInfo = sk_X509_INFO_value(certInfos, i);
-        if (certInfo->x509 != NULL) {
+    if (endCertLength)
+    {
+        // Server Side, SSL_get_peer_cert_chain does not contain the end-cert
+        // and hence provided seperately
+        STACK_OF(X509_INFO)* endCertInfo = NULL;
+        endCertBio = BIO_new_mem_buf(endCertBytes, endCertLength);
+        if (endCertBio == nullptr)
+        {
+            goto CommonReturn;
+        }
+        endCertInfo = PEM_X509_INFO_read_bio(endCertBio, NULL, NULL, NULL);
+        if (certInfos == NULL) {
+            goto CommonReturn;
+        }
+        for (int i = 0; i < sk_X509_INFO_num(endCertInfo); i++) {
+            X509_INFO* certInfo = sk_X509_INFO_value(endCertInfo, i);
             if (*cert == NULL) {
                 *cert = certInfo->x509;
+                break;
             }
-            else {
+        }
+        for (int i = 0; i < sk_X509_INFO_num(certInfos); i++) {
+            X509_INFO* certInfo = sk_X509_INFO_value(certInfos, i);
+            if (certInfo->x509 != NULL)
+            {
                 if (!sk_X509_push(*ca, certInfo->x509)) {
-                    goto openSslErr;
+                    goto CommonReturn;
                 }
+                X509_up_ref(certInfo->x509);
             }
-
-            X509_up_ref(certInfo->x509);
+        }
+        if (!*cert) {
+            goto CommonReturn;
         }
     }
-
-    if (!*cert) {
-        goto end;
+    else
+    {
+        // Client Side: SSL_get_peer_cert_chain contains the end-cert
+        for (int i = 0; i < sk_X509_INFO_num(certInfos); i++) {
+            X509_INFO* certInfo = sk_X509_INFO_value(certInfos, i);
+            if (certInfo->x509 != NULL) {
+                if (*cert == NULL) {
+                    *cert = certInfo->x509;
+                }
+                else {
+                    if (!sk_X509_push(*ca, certInfo->x509)) {
+                        goto CommonReturn;
+                    }
+                }
+                X509_up_ref(certInfo->x509);
+            }
+        }
+        if (!*cert) {
+            goto CommonReturn;
+        }
     }
 
     ret = 1;
 
-end:
+CommonReturn:
     sk_X509_INFO_pop_free(certInfos, X509_INFO_free);
-    BIO_free(in);
-
+    BIO_free(certChainBio);
+    BIO_free(endCertBio);
     if (!ret) {
         X509_free(*cert);
         *cert = NULL;
         sk_X509_pop_free(*ca, X509_free);
         *ca = NULL;
     }
-
     return ret;
-
-openSslErr:
-    goto end;
 }
 
 bool
 win_verify_peer_certs(
     HCERTCHAINENGINE hChainEngine,
-    size_t certLength,
-    const char* certBytes)
+    size_t certChainLength,
+    const char* certChainBytes,
+    size_t endCertLength,
+    const char* endCertBytes)
 {
     bool returnStatus = false;
     DWORD dwError = ERROR_SUCCESS;
@@ -699,7 +758,7 @@ win_verify_peer_certs(
     int chainDepth = 0;
     HCERTSTORE hCertStore = NULL;
     int len = 0;
-    unsigned char* buf = NULL;
+    unsigned char* buf = nullptr;
     PCCERT_CONTEXT pCertContext = NULL;
     CERT_CHAIN_PARA ChainPara = { 0 };
     ChainPara.cbSize = sizeof(ChainPara);
@@ -707,8 +766,10 @@ win_verify_peer_certs(
     PCCERT_CHAIN_CONTEXT pChainContext = NULL;
 
     if (!_load_pem_certs(
-            static_cast<int>(certLength),
-            certBytes,
+            certChainLength,
+            certChainBytes,
+            endCertLength,
+            endCertBytes,
             &end,
             &rest))
     {
@@ -723,23 +784,23 @@ win_verify_peer_certs(
     }
 
     hCertStore = CertOpenStore(
-        CERT_STORE_PROV_MEMORY,
-        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-        NULL,                       // hCryptProv
-        CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG | CERT_STORE_SHARE_CONTEXT_FLAG,
-        NULL);                      // pvPara
+                    CERT_STORE_PROV_MEMORY,
+                    X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                    NULL,                       // hCryptProv
+                    CERT_STORE_DEFER_CLOSE_UNTIL_LAST_FREE_FLAG | CERT_STORE_SHARE_CONTEXT_FLAG,
+                    NULL);                      // pvPara
     if (NULL == hCertStore)
     {
         goto CommonReturn;
     }
 
     if (!CertAddEncodedCertificateToStore(
-        hCertStore,
-        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-        buf,
-        len,
-        CERT_STORE_ADD_USE_EXISTING,
-        &pCertContext))
+            hCertStore,
+            X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+            buf,
+            len,
+            CERT_STORE_ADD_USE_EXISTING,
+            &pCertContext))
     {
         goto CommonReturn;
     }
@@ -759,7 +820,10 @@ win_verify_peer_certs(
     chainDepth = sk_X509_num(rest);
     for (int i = 0; i < chainDepth; i++)
     {
+        int len = 0;
+        unsigned char* buf = nullptr;
         PCCERT_CONTEXT pCertRest = NULL;
+
         X509* cert = sk_X509_value(rest, i);
         printf("  [%d]: ", i);
         X509_NAME_print_ex_fp(
@@ -776,12 +840,12 @@ win_verify_peer_certs(
         }
 
         if (!CertAddEncodedCertificateToStore(
-            hCertStore,
-            X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
-            buf,
-            len,
-            CERT_STORE_ADD_USE_EXISTING,
-            &pCertRest))
+                hCertStore,
+                X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+                buf,
+                len,
+                CERT_STORE_ADD_USE_EXISTING,
+                &pCertRest))
         {
             goto CommonReturn;
         }

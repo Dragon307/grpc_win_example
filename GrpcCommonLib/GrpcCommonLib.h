@@ -45,7 +45,9 @@ win_get_engine_key_id(
 bool
 win_verify_peer_certs(
     HCERTCHAINENGINE hChainEngine,
-    size_t certLength,
-    const char* certBytes);
+    size_t certChainLength,
+    const char* certChainBytes,
+    size_t endCertLength,
+    const char* endCertBytes);
 
 

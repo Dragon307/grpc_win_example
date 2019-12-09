@@ -121,14 +121,20 @@ bool verify_server(const char* peer_pem)
     }
 
     printf("Peer Cert:\n%s\n", peer_pem);
-    if (win_verify_peer_certs(hChainEngine, strlen(peer_pem), peer_pem) == 0) {
-        printf("Chain is not verified\n");
-        return false;
-    }
-    else
+    if (win_verify_peer_certs(
+            hChainEngine,
+            strlen(peer_pem),
+            peer_pem,
+            0,
+            nullptr))
     {
         printf("Chain is verified\n");
         return true;
+    }
+    else
+    {
+        printf("Chain is not verified\n");
+        return false;
     }
 }
 
