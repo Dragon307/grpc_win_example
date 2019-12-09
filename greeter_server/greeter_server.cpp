@@ -138,35 +138,23 @@ _grpc_get_server_credentials(
     if (certChain) { pem_cert_chain = certChain; }
     if (keyId) { pem_private_key = keyId; }
 
-    // Key Material
-    struct TlsKeyMaterialsConfig::PemKeyCertPair pair = { pem_private_key, pem_cert_chain };
-    std::shared_ptr<TlsKeyMaterialsConfig> key_materials_config(new TlsKeyMaterialsConfig());
-    key_materials_config->set_pem_root_certs(pem_root_certs);
-    key_materials_config->add_pem_key_cert_pair(pair);
+    grpc::SslServerCredentialsOptions ssl_opts{};
+    grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp{
+        pem_private_key,
+        pem_cert_chain };
+    ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+    ssl_opts.pem_root_certs = pem_root_certs;
 
-    if (requestClientCert)
-    {
-        TlsCredentialsOptions credential_options = TlsCredentialsOptions(
-            GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY,
-            GRPC_SSL_SKIP_SERVER_CERTIFICATE_VERIFICATION,
-            key_materials_config,
-            nullptr,
-            nullptr);
-        server_credentials = TlsServerCredentials(credential_options);
+    if (requestClientCert) {
+        ssl_opts.client_certificate_request = GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY;
     }
-    else
-    {
-        TlsCredentialsOptions credential_options = TlsCredentialsOptions(
-            GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-            GRPC_SSL_SKIP_SERVER_CERTIFICATE_VERIFICATION,
-            key_materials_config,
-            nullptr,
-            nullptr);
-        server_credentials = TlsServerCredentials(credential_options);
+    else {
+        ssl_opts.client_certificate_request = GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE;
     }
+
+    server_credentials = grpc::SslServerCredentials((const grpc::SslServerCredentialsOptions&)ssl_opts);
     return server_credentials;
 }
-
 
 void RunServer() {
     printf("Server Address: %s\n", server_address);

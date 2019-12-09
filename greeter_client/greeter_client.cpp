@@ -110,14 +110,16 @@ private:
     std::unique_ptr<Greeter::Stub> stub_;
 };
 
-
-bool verify_server(const char* peer_pem)
+int verify_server(
+    const char* target_name,
+    const char* peer_pem,
+    void* userdata)
 {
     int verify_result = 1;
     if (peer_pem == nullptr)
     {
         printf("No Certificates\n");
-        return false;
+        return 1;
     }
 
     printf("Peer Cert:\n%s\n", peer_pem);
@@ -129,53 +131,17 @@ bool verify_server(const char* peer_pem)
             nullptr))
     {
         printf("Chain is verified\n");
-        return true;
+        return 0;
     }
     else
     {
         printf("Chain is not verified\n");
-        return false;
+        return 1;
     }
 }
 
-class TestTlsServerAuthorizationCheck
-    : public TlsServerAuthorizationCheckInterface {
-    int Schedule(TlsServerAuthorizationCheckArg* arg) override {
-        if (arg) {
-            if (arg->target_name().c_str())
-            {
-                printf("Callback TargetName: %s\n", arg->target_name().c_str());
-            }
-
-            if (verify_server(arg->peer_cert().c_str()))
-            {
-                // Chain is verified
-                arg->set_cb_user_data(nullptr);
-                arg->set_success(1);
-                arg->set_status(GRPC_STATUS_OK);
-            }
-            else
-            {
-                // Chain is not verified
-                arg->set_cb_user_data(nullptr);
-                arg->set_success(0);
-                arg->set_status(GRPC_STATUS_UNAUTHENTICATED);
-            }
-        }
-        return 0;
-    }
-
-    void Cancel(TlsServerAuthorizationCheckArg* arg) override {
-        if (arg) {
-            arg->set_success(0);
-            arg->set_status(GRPC_STATUS_PERMISSION_DENIED);
-        }
-    }
-};
-
 std::shared_ptr<grpc::ChannelCredentials>
 _grpc_get_channel_credentials(
-    std::shared_ptr<TlsServerAuthorizationCheckConfig> server_check_config,
     char* rootCerts,
     char* certChain,            // Optional, set for client auth
     char* keyId)                // Optional, set for client auth
@@ -187,36 +153,34 @@ _grpc_get_channel_credentials(
     if (certChain) { pem_cert_chain = certChain; }
     if (keyId) { pem_private_key = keyId; }
 
-    // Key Material
-    struct TlsKeyMaterialsConfig::PemKeyCertPair pair = { pem_private_key, pem_cert_chain };
-    std::shared_ptr<TlsKeyMaterialsConfig> key_materials_config(new TlsKeyMaterialsConfig());
-    key_materials_config->set_pem_root_certs(pem_root_certs);
-    key_materials_config->add_pem_key_cert_pair(pair);
+    grpc_ssl_verify_peer_options options = {};
+    options.verify_peer_callback = &verify_server;
+    options.verify_peer_callback_userdata = nullptr;
+    options.verify_peer_destruct = nullptr;
+    options.peer_cert_request_type = GRPC_SSL_PEER_FULL_CHAIN;
 
-    // Credential Options
-    TlsCredentialsOptions credential_options = TlsCredentialsOptions(
-        GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-        GRPC_SSL_SKIP_SERVER_CERTIFICATE_VERIFICATION,
-        key_materials_config,
-        nullptr,
-        server_check_config);
+    grpc::SslCredentialsOptions ssl_opts{
+        pem_root_certs,
+        pem_private_key,
+        pem_cert_chain };
+    grpc::SslClientCredentialsOptions ssl_client_options{};
 
-    std::shared_ptr<grpc_impl::ChannelCredentials> channel_credentials =
-        grpc::experimental::TlsCredentials(credential_options);
+    ssl_client_options.credential_options.pem_root_certs = pem_root_certs;
+    ssl_client_options.credential_options.pem_cert_chain = pem_cert_chain;
+    ssl_client_options.credential_options.pem_private_key = pem_private_key;
+    ssl_client_options.verify_options = &options;
+    ssl_client_options.server_verification_option = GRPC_SSL_SKIP_SERVER_CERTIFICATE_VERIFICATION;
 
+    std::shared_ptr<grpc::ChannelCredentials> channel_credentials =
+        grpc::SslClientCredentials(ssl_client_options);
     return channel_credentials;
 }
 
 void RunClient() {
     printf("Server Address: %s\n", server_address);
     printf("Server Name: %s\n", server_name);
-    std::shared_ptr<TestTlsServerAuthorizationCheck>
-        server_check(new TestTlsServerAuthorizationCheck());
-    std::shared_ptr<TlsServerAuthorizationCheckConfig>
-        server_check_config(new TlsServerAuthorizationCheckConfig(server_check));
     std::shared_ptr<grpc::ChannelCredentials> clientChannelCredentials =
         _grpc_get_channel_credentials(
-            server_check_config,
             pem_roots,
             pem_cert_chain,
             keyId);
