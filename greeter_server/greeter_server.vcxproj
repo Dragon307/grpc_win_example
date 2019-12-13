@@ -170,6 +170,21 @@
     <ClInclude Include="..\proto\helloworld.grpc.pb.h" />
     <ClInclude Include="..\proto\helloworld.pb.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\grpc-akshay.0.0.1\build\native\grpc-akshay.targets" Condition="Exists('..\packages\grpc-akshay.0.0.1\build\native\grpc-akshay.targets')" />
+    <Import Project="..\packages\openssl.0.0.7\build\native\openssl.targets" Condition="Exists('..\packages\openssl.0.0.7\build\native\openssl.targets')" />
+    <Import Project="..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets" Condition="Exists('..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets')" />
+  </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\grpc-akshay.0.0.1\build\native\grpc-akshay.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\grpc-akshay.0.0.1\build\native\grpc-akshay.targets'))" />
+    <Error Condition="!Exists('..\packages\openssl.0.0.7\build\native\openssl.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\openssl.0.0.7\build\native\openssl.targets'))" />
+    <Error Condition="!Exists('..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets'))" />
+  </Target>
 </Project>
