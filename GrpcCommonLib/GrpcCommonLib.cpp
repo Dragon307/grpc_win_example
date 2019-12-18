@@ -9,6 +9,8 @@
 #include <openssl/ssl.h>
 #include <openssl/engine.h>
 
+#pragma comment(lib, "crypt32.lib")
+
 static __inline
 DWORD
 _GetNonzeroLastError()
