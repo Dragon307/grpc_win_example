@@ -177,7 +177,7 @@
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\openssl.0.0.7\build\native\openssl.targets" Condition="Exists('..\packages\openssl.0.0.7\build\native\openssl.targets')" />
     <Import Project="..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets" Condition="Exists('..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets')" />
-    <Import Project="..\packages\grpc-win-engine.0.0.7\build\native\grpc-win-engine.targets" Condition="Exists('..\packages\grpc-win-engine.0.0.7\build\native\grpc-win-engine.targets')" />
+    <Import Project="..\packages\grpc-win-engine.0.0.9\build\native\grpc-win-engine.targets" Condition="Exists('..\packages\grpc-win-engine.0.0.9\build\native\grpc-win-engine.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -185,6 +185,6 @@
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\openssl.0.0.7\build\native\openssl.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\openssl.0.0.7\build\native\openssl.targets'))" />
     <Error Condition="!Exists('..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\openssl-ncrypt.0.0.4\build\native\openssl-ncrypt.targets'))" />
-    <Error Condition="!Exists('..\packages\grpc-win-engine.0.0.7\build\native\grpc-win-engine.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\grpc-win-engine.0.0.7\build\native\grpc-win-engine.targets'))" />
+    <Error Condition="!Exists('..\packages\grpc-win-engine.0.0.9\build\native\grpc-win-engine.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\grpc-win-engine.0.0.9\build\native\grpc-win-engine.targets'))" />
   </Target>
 </Project>

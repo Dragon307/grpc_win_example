@@ -196,7 +196,7 @@ _grpc_get_channel_credentials(
     // Credential Options
     TlsCredentialsOptions credential_options = TlsCredentialsOptions(
         GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-        GRPC_SSL_SKIP_SERVER_CERTIFICATE_VERIFICATION,
+        GRPC_SSL_SKIP_ALL_SERVER_VERIFICATION,
         key_materials_config,
         nullptr,
         server_check_config);
