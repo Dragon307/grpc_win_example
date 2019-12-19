@@ -15,7 +15,6 @@
  * limitations under the License.
  *
  */
-
 #define NOMINMAX
 #include <windows.h>
 #include <wincrypt.h>
