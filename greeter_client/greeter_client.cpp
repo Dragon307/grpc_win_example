@@ -111,7 +111,7 @@ private:
 };
 
 
-bool verify_server(const char* peer_pem)
+bool verify_peer(const char* peer_pem)
 {
     int verify_result = 1;
     if (peer_pem == nullptr)
@@ -147,7 +147,7 @@ class TestTlsServerAuthorizationCheck
                 printf("Callback TargetName: %s\n", arg->target_name().c_str());
             }
 
-            if (verify_server(arg->peer_cert_full_chain().c_str()))
+            if (verify_peer(arg->peer_cert_full_chain().c_str()))
             {
                 // Chain is verified
                 arg->set_cb_user_data(nullptr);
@@ -191,7 +191,9 @@ _grpc_get_channel_credentials(
     struct TlsKeyMaterialsConfig::PemKeyCertPair pair = { pem_private_key, pem_cert_chain };
     std::shared_ptr<TlsKeyMaterialsConfig> key_materials_config(new TlsKeyMaterialsConfig());
     key_materials_config->set_pem_root_certs(pem_root_certs);
-    key_materials_config->add_pem_key_cert_pair(pair);
+    if (certChain && keyId) {
+        key_materials_config->add_pem_key_cert_pair(pair);
+    }
 
     // Credential Options
     TlsCredentialsOptions credential_options = TlsCredentialsOptions(
@@ -210,6 +212,7 @@ _grpc_get_channel_credentials(
 void RunClient() {
     printf("Server Address: %s\n", server_address);
     printf("Server Name: %s\n", server_name);
+    fflush(stdout);
     std::shared_ptr<TestTlsServerAuthorizationCheck>
         server_check(new TestTlsServerAuthorizationCheck());
     std::shared_ptr<TlsServerAuthorizationCheckConfig>
@@ -222,12 +225,13 @@ void RunClient() {
             keyId);
     grpc::ChannelArguments args;
     args.SetSslTargetNameOverride(server_name);
-    std::cout << "Creating Custom Channel" << std::endl;
+    printf("Creating Custom Channel\n");
+    fflush(stdout);
     GreeterClient greeter(grpc::CreateCustomChannel(
         server_address, clientChannelCredentials, args));
     std::string user("world");
     std::string reply = greeter.SayHello(user);
-    std::cout << "Greeter received: " << reply << std::endl;
+    printf("Greeter received: %s\n", reply.c_str());
 }
 
 void Usage(void)
@@ -506,7 +510,7 @@ int main(int argc, char** argv) {
     {
         printf("KeyId:\n%s\n\n", keyId);
     }
-
+    fflush(stdout);
     RunClient();
 
     ReturnStatus = 0;

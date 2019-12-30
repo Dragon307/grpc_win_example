@@ -84,6 +84,7 @@ class GreeterServiceImpl final : public Greeter::Service {
                 auth_ctx->FindPropertyValues(GRPC_X509_PEM_CERT_PROPERTY_NAME);
             for (grpc::string_ref cert : ClientCertProperty) {
                 printf("\nClientCert:\n%s\n\n", cert.data());
+                fflush(stdout);
                 endCert = cert;
             }
 
@@ -92,6 +93,7 @@ class GreeterServiceImpl final : public Greeter::Service {
 
             for (grpc::string_ref certChainString : ClientCertChainProperty) {
                 printf("\nClientCertChain:\n%s\n\n", certChainString.data());
+                fflush(stdout);
                 certChain = certChainString;
             }
 
@@ -147,7 +149,7 @@ _grpc_get_server_credentials(
     {
         TlsCredentialsOptions credential_options = TlsCredentialsOptions(
             GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY,
-            GRPC_TLS_SKIP_ALL_SERVER_VERIFICATION,
+            GRPC_TLS_SERVER_VERIFICATION,
             key_materials_config,
             nullptr,
             nullptr);
@@ -157,7 +159,7 @@ _grpc_get_server_credentials(
     {
         TlsCredentialsOptions credential_options = TlsCredentialsOptions(
             GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-            GRPC_TLS_SKIP_ALL_SERVER_VERIFICATION,
+            GRPC_TLS_SERVER_VERIFICATION,
             key_materials_config,
             nullptr,
             nullptr);
@@ -165,7 +167,6 @@ _grpc_get_server_credentials(
     }
     return server_credentials;
 }
-
 
 void RunServer() {
     printf("Server Address: %s\n", server_address);
@@ -180,15 +181,16 @@ void RunServer() {
     ServerBuilder builder;
     builder.AddListeningPort(serverAddress, serverChannelCredentials);
     builder.RegisterService(&service);
+    printf("ServerBuilder: Build and Start listening\n");
     std::unique_ptr<Server> server(builder.BuildAndStart());
     if (server) {
         printf("Server listening on %s\n", server_address);
+        fflush(stdout);
         server->Wait();
     }
     else {
         printf("Server Builder Failed\n");
     }
-
 }
 
 void Usage(void)
@@ -442,7 +444,7 @@ int main(int argc, char** argv)
         }
         memcpy(keyId, fileContents.c_str(), fileContents.length());
     }
-
+    fflush(stdout);
     if (!pem_roots)
     {
         printf("Missing Root Information\n");
@@ -450,7 +452,8 @@ int main(int argc, char** argv)
     }
     else
     {
-        printf("Root Certs:\n%s\n\n", pem_roots);
+        printf("Root Certs:\n%s", pem_roots);
+        printf("\n\n");
     }
 
     if (!pem_cert_chain)
@@ -460,7 +463,8 @@ int main(int argc, char** argv)
     }
     else
     {
-        printf("Cert Chain:\n%s\n\n", pem_cert_chain);
+        printf("Cert Chain:\n%s", pem_cert_chain);
+        printf("\n\n");
     }
 
     if (!keyId)
@@ -470,8 +474,10 @@ int main(int argc, char** argv)
     }
     else
     {
-        printf("KeyId:\n%s\n\n", keyId);
+        printf("KeyId:\n%s", keyId);
+        printf("\n\n");
     }
+    fflush(stdout);
 
     RunServer();
 

@@ -283,7 +283,7 @@ win_open_memory_cert_store(
         buf = nullptr;
         CertFreeCertificateContext(pCertContext);
     }
-
+    printf("\n");
     returnStatus = true;
 
 CommonReturn:
