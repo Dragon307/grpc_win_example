@@ -147,7 +147,7 @@ _grpc_get_server_credentials(
     {
         TlsCredentialsOptions credential_options = TlsCredentialsOptions(
             GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY,
-            GRPC_SSL_SKIP_ALL_SERVER_VERIFICATION,
+            GRPC_TLS_SKIP_ALL_SERVER_VERIFICATION,
             key_materials_config,
             nullptr,
             nullptr);
@@ -157,7 +157,7 @@ _grpc_get_server_credentials(
     {
         TlsCredentialsOptions credential_options = TlsCredentialsOptions(
             GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-            GRPC_SSL_SKIP_ALL_SERVER_VERIFICATION,
+            GRPC_TLS_SKIP_ALL_SERVER_VERIFICATION,
             key_materials_config,
             nullptr,
             nullptr);

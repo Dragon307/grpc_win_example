@@ -147,7 +147,7 @@ class TestTlsServerAuthorizationCheck
                 printf("Callback TargetName: %s\n", arg->target_name().c_str());
             }
 
-            if (verify_server(arg->peer_cert().c_str()))
+            if (verify_server(arg->peer_cert_full_chain().c_str()))
             {
                 // Chain is verified
                 arg->set_cb_user_data(nullptr);
@@ -196,7 +196,7 @@ _grpc_get_channel_credentials(
     // Credential Options
     TlsCredentialsOptions credential_options = TlsCredentialsOptions(
         GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE,
-        GRPC_SSL_SKIP_ALL_SERVER_VERIFICATION,
+        GRPC_TLS_SKIP_ALL_SERVER_VERIFICATION,
         key_materials_config,
         nullptr,
         server_check_config);
