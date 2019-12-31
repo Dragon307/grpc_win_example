@@ -77,46 +77,65 @@ class GreeterServiceImpl final : public Greeter::Service {
         if (auth_ctx)
         {
             printf("\nGot Auth Context\n");
-            grpc::string_ref endCert;
-            grpc::string_ref certChain;
+            fflush(stdout);
 
-            std::vector<grpc::string_ref> ClientCertProperty =
-                auth_ctx->FindPropertyValues(GRPC_X509_PEM_CERT_PROPERTY_NAME);
-            for (grpc::string_ref cert : ClientCertProperty) {
-                printf("\nClientCert:\n%s\n\n", cert.data());
-                fflush(stdout);
-                endCert = cert;
-            }
+            if (verify_client)
+            {
+                grpc::string_ref endCert;
+                grpc::string_ref certChain;
 
-            std::vector<grpc::string_ref> ClientCertChainProperty =
-                auth_ctx->FindPropertyValues(GRPC_X509_PEM_CERT_CHAIN_PROPERTY_NAME);
+                std::vector<grpc::string_ref> ClientCertProperty =
+                    auth_ctx->FindPropertyValues(GRPC_X509_PEM_CERT_PROPERTY_NAME);
+                for (grpc::string_ref cert : ClientCertProperty) {
+                    printf("\nClientCert:\n%s\n\n", cert.data());
+                    fflush(stdout);
+                    endCert = cert;
+                }
 
-            for (grpc::string_ref certChainString : ClientCertChainProperty) {
-                printf("\nClientCertChain:\n%s\n\n", certChainString.data());
-                fflush(stdout);
-                certChain = certChainString;
-            }
+                std::vector<grpc::string_ref> ClientCertChainProperty =
+                    auth_ctx->FindPropertyValues(GRPC_X509_PEM_CERT_CHAIN_PROPERTY_NAME);
 
-            if (win_verify_peer_certs(
+                for (grpc::string_ref certChainString : ClientCertChainProperty) {
+                    printf("\nClientCertChain:\n%s\n\n", certChainString.data());
+                    fflush(stdout);
+                    certChain = certChainString;
+                }
+
+                if (win_verify_peer_certs(
                     hChainEngine,
                     certChain.length(),
                     certChain.data(),
                     endCert.length(),
                     endCert.data()))
+                {
+                    printf("Chain is verified\n");
+                    fflush(stdout);
+                    printf("Sending Hello\n");
+                    fflush(stdout);
+                    std::string prefix("Hello ");
+                    reply->set_message(prefix + request->name());
+                    return Status::OK;
+                }
+                else
+                {
+                    printf("Chain is not verified\n");
+                    fflush(stdout);
+                    return Status::CANCELLED;
+                }
+            }
+            else
             {
-                printf("Chain is verified\n");
+                printf("Sending Hello\n");
+                fflush(stdout);
                 std::string prefix("Hello ");
                 reply->set_message(prefix + request->name());
                 return Status::OK;
             }
-            else
-            {
-                printf("Chain is not verified\n");
-                return Status::CANCELLED;
-            }
         }
         else
         {
+            printf("Sending Hello\n");
+            fflush(stdout);
             std::string prefix("Hello ");
             reply->set_message(prefix + request->name());
             return Status::OK;
