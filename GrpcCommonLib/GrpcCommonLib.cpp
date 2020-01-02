@@ -515,6 +515,8 @@ win_get_cert_chain(
             continue;
         }
 
+        //_DumpHex("CERT", pCert->pbCertEncoded, pCert->cbCertEncoded);
+
         BIO_write(certBio, pCert->pbCertEncoded, pCert->cbCertEncoded);
 
         cert = d2i_X509_bio(certBio, NULL);
@@ -536,22 +538,26 @@ win_get_cert_chain(
         }
 
         X509_free(cert);
-        cert = NULL;
+        BIO_free(certBio);
     }
 
     memLen = (int)BIO_get_mem_data(mem, (char**)&memBytes);
-    if (memLen > 0) {
-        *pem_chain = (char*)LocalAlloc(LPTR, memLen + sizeof(char));
-        if (*pem_chain == NULL)
-        {
-            dwError = ERROR_INTERNAL_ERROR;
-            goto CommonReturn;
-        }
-
-        memcpy(*pem_chain, memBytes, memLen);
-        *pem_chain_length = memLen;
-        returnStatus = false;
+    if (memLen <= 0) {
+        printf("MemData Error\n");
+        dwError = ERROR_NOT_FOUND;
+        goto CommonReturn;
     }
+
+    *pem_chain = (char*)LocalAlloc(LPTR, memLen + sizeof(char));
+    if (*pem_chain == NULL)
+    {
+        dwError = ERROR_INTERNAL_ERROR;
+        goto CommonReturn;
+    }
+
+    memcpy(*pem_chain, memBytes, memLen);
+    *pem_chain_length = memLen;
+    returnStatus = true;
 
 CommonReturn:
     if (pChainContext != NULL)
